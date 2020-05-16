@@ -65,23 +65,23 @@ FROM Facilities;
 
 /* Q6: You'd like to get the first and last name of the last member(s)
 who signed up. Do not use the LIMIT clause for your solution. */
-SELECT surname, firstname, MAX( joindate ) AS joined
-FROM `Members`;
-
+SELECT surname, firstname
+FROM Members
+WHERE joindate = (
+SELECT MAX( joindate ) AS joined
+FROM Members );
 
 /* Q7: How can you produce a list of all members who have used a tennis court?
 Include in your output the name of the court, and the name of the member
 formatted as a single column. Ensure no duplicate data, and order by
 the member name. */
-SELECT 
-       CONCAT(B.firstname,' ',B.surname) AS full_name,
-       C.name AS facilities_name
+SELECT CONCAT( B.firstname, ' ', B.surname ) AS full_name, C.name AS facilities_name
 FROM country_club.Bookings A
-JOIN country_club.Members B
-ON A.memid = B.memid
-JOIN country_club.Facilities C
-ON A.facid = C.facid
-ORDER BY 1;
+JOIN country_club.Members B ON A.memid = B.memid
+JOIN country_club.Facilities C ON A.facid = C.facid
+WHERE C.name LIKE "%Tennis%"
+ORDER BY full_name
+LIMIT 0 , 30;
 
 
 /* Q8: How can you produce a list of bookings on the day of 2012-09-14 which
@@ -92,13 +92,15 @@ facility, the name of the member formatted as a single column, and the cost.
 Order by descending cost, and do not use any subqueries. */
 
 SELECT A.starttime AS time_new,
-       ((C.guestcost + C.membercost)*A.slots) AS cost,
+       CASE WHEN A.memid = 0 THEN
+       C.guestcost*A.slots ELSE C.membercost*A.slots END AS cost,
        CONCAT(B.firstname,' ',B.surname) AS full_name
 FROM country_club.Bookings A
 JOIN country_club.Members B ON A.memid = B.memid
 JOIN country_club.Facilities C ON A.facid = C.facid
-WHERE ((C.guestcost + C.membercost)*A.slots) > 30
-      AND A.starttime >= '2012-09-14' AND A.starttime < '2012-09-15'
+WHERE (CASE WHEN A.memid = 0 THEN
+       C.guestcost*A.slots ELSE C.membercost*A.slots END) > 30
+      AND A.starttime like '2012-09-14%' 
 ORDER BY 2 DESC;
 
 
@@ -106,36 +108,31 @@ ORDER BY 2 DESC;
 SELECT *
 
 FROM (SELECT A.starttime AS time_new,
-       ((C.guestcost + C.membercost)*A.slots) AS cost,
+       CASE WHEN A.memid = 0 THEN
+       C.guestcost*A.slots ELSE C.membercost*A.slots END AS cost,
        CONCAT(B.firstname,' ',B.surname) AS full_name
 FROM country_club.Bookings A
 JOIN country_club.Members B ON A.memid = B.memid
 JOIN country_club.Facilities C ON A.facid = C.facid
-) AS CD
+WHERE (CASE WHEN A.memid = 0 THEN
+       C.guestcost*A.slots ELSE C.membercost*A.slots END) > 30
+       ORDER BY 2 DESC) fulltable
 
-WHERE cost > 30
-      AND time_new >= '2012-09-14' AND time_new < '2012-09-15'
-ORDER BY 2 DESC;
-
+WHERE fulltable.time_new like '2012-09-14%';
 
 /* Q10: Produce a list of facilities with a total revenue less than 1000.
 The output of facility name and total revenue, sorted by revenue. Remember
 that there's a different cost for guests and members! */
 
 SELECT *
-
 FROM (SELECT C.name AS facility_name,
-       SUM(C.guestcost * A.slots) AS guestcost_total,
-       SUM(((C.membercost)*A.slots)) AS membercost_total
+       SUM(CASE WHEN A.memid = 0 THEN
+       C.guestcost*A.slots ELSE C.membercost*A.slots END) AS cost
 FROM country_club.Bookings A
 JOIN country_club.Members B ON A.memid = B.memid
 JOIN country_club.Facilities C ON A.facid = C.facid
+GROUP BY C.name) table1
 
-GROUP BY 1) AB
+WHERE table1.cost >1000
 
-WHERE AB.membercost_total < 1000;
-
-
-
-
-
+ORDER BY table1.cost DESC;
